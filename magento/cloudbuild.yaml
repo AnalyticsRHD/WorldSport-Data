@@ -20,5 +20,15 @@ steps:
       - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
       - '.'
 
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'jobs'
+      - 'update'
+      - 'magento-extractor-ws'
+      - '--region=southamerica-east1'
+      - '--image=southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
+
 images:
   - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
