@@ -32,3 +32,6 @@ steps:
 
 images:
   - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
