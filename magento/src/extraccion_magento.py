@@ -510,7 +510,6 @@ if __name__ == "__main__":
     # quedado de una prueba puntual -- pisaba silenciosamente el calculo
     # dinamico de arriba en cada corrida.)
 
-    #Agrego comentario para probar el autodeploy
     HOY = datetime.datetime.now(TIMEZONE_NEGOCIO)
     VENTANA_DIAS = 5
 
