@@ -20,6 +20,11 @@ steps:
       - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
       - '.'
 
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
+
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
