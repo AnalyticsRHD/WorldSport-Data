@@ -1,0 +1,6 @@
+pandas
+pyarrow
+requests
+requests-oauthlib
+python-dotenv
+google-cloud-storage

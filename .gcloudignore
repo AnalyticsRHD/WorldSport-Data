@@ -1,0 +1,28 @@
+# Controla que se sube al staging bucket de Cloud Build con
+# `gcloud builds submit` -- no confundir con .gitignore (ese controla que
+# entra al repo) ni con Dockerfiles (esos controlan que entra a la IMAGEN).
+# Los tres hacen falta, cada uno cubre una etapa distinta.
+
+.env
+*.env
+**/.env
+
+.venv/
+**/.venv/
+venv/
+
+__pycache__/
+**/__pycache__/
+*.pyc
+
+data/
+**/data/
+
+.git/
+.gitignore
+
+*-key.json
+*key*.json
+*credentials*.json
+*service-account*.json
+sa-key.json

@@ -1,0 +1,24 @@
+# Config de Cloud Build para el extractor de Magento.
+#
+# Se corre desde la RAIZ del repo (no desde adentro de magento/):
+#   gcloud builds submit --config=magento/cloudbuild.yaml .
+#
+# El "." final es el contexto (la raiz del repo completa, para que el
+# Dockerfile pueda copiar _common/ ademas de magento/). El -f apunta al
+# Dockerfile puntual de esta fuente.
+#
+# Reemplazar $PROJECT_ID se resuelve solo (variable built-in de Cloud
+# Build); ajustar la region/repo de Artifact Registry si difiere.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'magento/Dockerfile'
+      - '-t'
+      - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'
+      - '.'
+
+images:
+  - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/magento-extractor'

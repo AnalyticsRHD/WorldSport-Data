@@ -1,0 +1,27 @@
+# Credenciales -- nunca al repo, sea cual sea la fuente
+.env
+*.env
+**/.env
+
+# Entornos virtuales
+.venv/
+**/.venv/
+venv/
+
+# Cache de Python
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Salidas locales (parquet/csv de respaldo, no son fuente de verdad)
+data/
+**/data/
+
+# Keys de service account si alguna vez se descargan localmente
+# (patrones tipicos de como GCP nombra estos archivos por default)
+*-key.json
+*key*.json
+*credentials*.json
+*service-account*.json
+sa-key.json
+
