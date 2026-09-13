@@ -162,8 +162,8 @@ GCS_BUCKET = os.getenv("GCS_BUCKET")
 # Job, igual patron que ya se usa para BigQuery/GCS en LOOPI). En cualquier
 # caso, esa cuenta de servicio necesita el rol de Viewer sobre la propiedad
 # GA4 en Google Analytics Admin -- no alcanza con permisos de GCP.
-GA4_PROPERTY_ID = os.getenv("GA4_PROPERTY_ID")
-GA4_CREDENTIALS_JSON = os.getenv("GA4_CREDENTIALS_JSON")
+GA4_PROPERTY_ID = os.getenv("GA4_PROPERTY_ID",402391218)
+GA4_CREDENTIALS_JSON = os.getenv("GA4_KEY_FILE")
 
 # Ventana de "vistos" para definir el universo de SKUs a consultar stock --
 # ver el punto 8 del docstring del archivo. Configurable por variable de
