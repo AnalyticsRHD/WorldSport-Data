@@ -4,3 +4,4 @@ requests
 requests-oauthlib
 python-dotenv
 google-cloud-storage
+google-analytics-data

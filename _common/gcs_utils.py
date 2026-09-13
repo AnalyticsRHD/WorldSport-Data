@@ -68,3 +68,76 @@ def escribir_a_gcs(
     blob.upload_from_string(contenido, content_type="application/json")
 
     return path
+
+
+def leer_jsonl_de_gcs(
+    path: str,
+    gcs_project: str | None = None,
+    gcs_bucket: str | None = None,
+) -> list[dict]:
+    """
+    Lee un archivo JSON Lines desde un path EXACTO de GCS (a diferencia de
+    `escribir_a_gcs`, no arma el path por fuente/entidad/fecha -- se lo
+    das completo, tal cual lo escribiste).
+
+    Pensada para leer artefactos tipo "cache" que se sobreescriben en el
+    mismo path en cada corrida (ej. un mapeo padre->hijo de productos),
+    no los snapshots fechados e inmutables de raw/.
+
+    Si el blob no existe (primera corrida, todavia no se genero el cache),
+    devuelve lista vacia -- no es un error, es el estado esperado la
+    primera vez que corre esto.
+    """
+    gcs_project = gcs_project or os.getenv("GCS_PROJECT")
+    gcs_bucket = gcs_bucket or os.getenv("GCS_BUCKET")
+
+    if not gcs_project or not gcs_bucket:
+        raise RuntimeError(
+            "Faltan GCS_PROJECT / GCS_BUCKET (variables de entorno o "
+            "argumentos). Completar antes de correr esto en serio."
+        )
+
+    client = storage.Client(project=gcs_project)
+    bucket = client.bucket(gcs_bucket)
+    blob = bucket.blob(path)
+
+    if not blob.exists():
+        return []
+
+    contenido = blob.download_as_text()
+    return [json.loads(linea) for linea in contenido.splitlines() if linea.strip()]
+
+
+def escribir_jsonl_a_gcs(
+    registros: list[dict],
+    path: str,
+    gcs_project: str | None = None,
+    gcs_bucket: str | None = None,
+) -> str:
+    """
+    Sobreescribe un archivo JSON Lines en un path EXACTO de GCS con la
+    lista de dicts recibida completa -- a diferencia de `escribir_a_gcs`,
+    no particiona por fecha ni recibe un DataFrame. Pensada para
+    artefactos tipo "cache" (ej. mapeo padre->hijo de productos) donde
+    cada corrida lee el estado actual, lo actualiza en memoria, y pisa el
+    archivo entero -- no para los snapshots fechados de raw/.
+
+    Devuelve el mismo `path` recibido, por simetria con `escribir_a_gcs`.
+    """
+    gcs_project = gcs_project or os.getenv("GCS_PROJECT")
+    gcs_bucket = gcs_bucket or os.getenv("GCS_BUCKET")
+
+    if not gcs_project or not gcs_bucket:
+        raise RuntimeError(
+            "Faltan GCS_PROJECT / GCS_BUCKET (variables de entorno o "
+            "argumentos). Completar antes de correr esto en serio."
+        )
+
+    client = storage.Client(project=gcs_project)
+    bucket = client.bucket(gcs_bucket)
+    blob = bucket.blob(path)
+
+    contenido = "\n".join(json.dumps(r, ensure_ascii=False, default=str) for r in registros)
+    blob.upload_from_string(contenido, content_type="application/json")
+
+    return path
