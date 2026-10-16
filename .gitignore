@@ -24,4 +24,5 @@ data/
 *credentials*.json
 *service-account*.json
 sa-key.json
-
+**/client_secret_*.json
+**/mercadolibre_oauth_state.json

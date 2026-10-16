@@ -36,13 +36,9 @@ CAMBIOS respecto a la version anterior (ventana rodante):
    `datetime.now()` a secas -- si esto corre en un container (Cloud Run,
    Vercel), sin esto el "ahora" queda en UTC y desalinea la ventana contra
    el dia de negocio real.
-5. PENDIENTE, no resuelto en esta version: el filtro `estatus="complete"`
-   sigue trayendo solo ordenes que HOY estan completas. Una orden que
-   estaba completa y se cancela/reembolsa despues deja de aparecer en
-   corridas futuras -- la fila vieja en tu historico queda con el estado
-   viejo para siempre. Esto no se soluciona con la ventana rodante; haria
-   falta sacar el filtro de estado y decidir que cuenta como "venta
-   valida" en una capa aparte (BigQuery), no en la extraccion.
+5. La extraccion de ordenes incluye todos los estados de Magento, sin
+   filtrar por estado. Los cambios de estado con una actualizacion anterior
+   a la ventana siguen sin aparecer.
 6. Se agrega `escribir_a_gcs()`: sube df_ordenes a
    gs://GCS_BUCKET/raw/magento/ordenes/{fecha_ejecucion}.json como JSON
    Lines (formato directo para `bq load --source_format=NEWLINE_DELIMITED_JSON`).
@@ -315,7 +311,7 @@ def obtener_edad_cliente(oauth, customer_id):
     _customer_cache[customer_id] = edad
     return edad
 
-def importar_ordenes(oauth, desde, hasta, estatus="complete", page_size=PAGE_SIZE):
+def importar_ordenes(oauth, desde, hasta, estatus=None, page_size=PAGE_SIZE):
     """
     Trae ordenes de Magento a nivel de linea de item, con updated_at entre
     'desde' y 'hasta'. Formato esperado de fechas: 'YYYY-MM-DD HH:MM:SS'
@@ -326,12 +322,8 @@ def importar_ordenes(oauth, desde, hasta, estatus="complete", page_size=PAGE_SIZ
     conversacion). Una orden recien creada tambien matchea este filtro
     (su updated_at arranca en el mismo valor que su created_at).
 
-    estatus: valor interno de Magento a filtrar (ej. 'complete').
-             Pasar None para traer todos los estatus sin filtrar.
-             OJO: con este filtro, una orden que estaba "complete" y pasa a
-             "canceled"/"refunded" simplemente deja de aparecer en corridas
-             futuras -- no se borra ni se marca en tu historico, tu fila
-             vieja queda desactualizada. Pendiente de resolver aparte.
+    estatus: estado o secuencia de estados internos de Magento a filtrar.
+             Por defecto trae todos los estados sin filtrar.
     """
     filas = []
     pagina = 1
@@ -353,11 +345,13 @@ def importar_ordenes(oauth, desde, hasta, estatus="complete", page_size=PAGE_SIZ
         )
 
         if estatus:
-            url += (
-                f"&searchCriteria[filterGroups][2][filters][0][field]=status"
-                f"&searchCriteria[filterGroups][2][filters][0][value]={quote(estatus)}"
-                f"&searchCriteria[filterGroups][2][filters][0][conditionType]=eq"
-            )
+            estados = [estatus] if isinstance(estatus, str) else estatus
+            for indice, estado in enumerate(estados):
+                url += (
+                    f"&searchCriteria[filterGroups][2][filters][{indice}][field]=status"
+                    f"&searchCriteria[filterGroups][2][filters][{indice}][value]={quote(estado)}"
+                    f"&searchCriteria[filterGroups][2][filters][{indice}][conditionType]=eq"
+                )
 
         url += (
             f"&searchCriteria[pageSize]={page_size}"
@@ -631,8 +625,8 @@ if __name__ == "__main__":
     fecha_ejecucion = HOY.strftime("%Y-%m-%d")
 
     if extraer_ordenes:
-        df_ordenes = importar_ordenes(oauth, desde, hasta, estatus="complete")
-        print(f"\nTotal de lineas importadas (solo 'complete'): {len(df_ordenes)}")
+        df_ordenes = importar_ordenes(oauth, desde, hasta, estatus=None)
+        print(f"\nTotal de lineas importadas (todos los estados): {len(df_ordenes)}")
 
     skus_unicos = df_ordenes["SKU"].dropna().unique().tolist()
 

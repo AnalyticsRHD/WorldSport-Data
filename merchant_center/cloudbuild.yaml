@@ -1,0 +1,24 @@
+# Config de Cloud Build para el extractor de Merchant Center.
+#
+# Se corre desde la RAIZ del repo (no desde adentro de merchant_center/):
+#   gcloud builds submit --config=merchant_center/cloudbuild.yaml .
+#
+# El "." final es el contexto (la raiz del repo completa, para que el
+# Dockerfile pueda copiar _common/ ademas de merchant_center/). El -f apunta
+# al Dockerfile puntual de esta fuente.
+#
+# $PROJECT_ID se resuelve solo (variable built-in de Cloud Build); ajustar
+# la region/repo de Artifact Registry si difiere del resto de las fuentes.
+ 
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'merchant_center/Dockerfile'
+      - '-t'
+      - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/merchant-center-extractor'
+      - '.'
+ 
+images:
+  - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/merchant-center-extractor'

@@ -1,0 +1,22 @@
+# Config de Cloud Build para el extractor de Mercado Ads (mismo patron que
+# magento/cloudbuild.yaml).
+#
+# Se corre desde la RAIZ del repo (no desde adentro de mercado-libre/):
+#   gcloud builds submit --config=mercado-libre/cloudbuild.yaml .
+#
+# El "." final es el contexto (la raiz del repo completa, para que el
+# Dockerfile pueda copiar _common/ ademas de mercado-libre/). El -f apunta
+# al Dockerfile puntual de esta fuente.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'mercado-libre/Dockerfile'
+      - '-t'
+      - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/mercado-libre-extractor'
+      - '.'
+
+images:
+  - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/mercado-libre-extractor'

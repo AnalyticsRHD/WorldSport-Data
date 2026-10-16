@@ -1,0 +1,59 @@
+{
+    // Configuraciones de "Run and Debug" para mercado-libre/src/extraccion_meli.py.
+    //
+    // POR QUE HACE FALTA ESTO: el boton ▶ "Run Python File" (la flecha verde
+    // arriba a la derecha del editor) SIEMPRE corre el archivo sin argumentos
+    // -- el equivalente a tipear "python extraccion_meli.py" a secas. Eso cae
+    // en los defaults del script (--mode extract --months 10), que necesitan
+    // un access_token ya valido. Si lo que queres es autorizar por primera
+    // vez, o correr con otro --mode/--scope, ESE BOTON NO SIRVE -- hay que
+    // pasarle argumentos, y el boton no tiene forma de hacerlo.
+    //
+    // COMO USAR ESTO: abri la pestaña "Run and Debug" (icono de play con un
+    // bichito, en la barra lateral izquierda, o Ctrl+Shift+D / Cmd+Shift+D),
+    // elegi una de las opciones de abajo en el desplegable de arriba, y
+    // apreta el triangulo verde de ESA pestaña (no el de arriba a la derecha
+    // del editor). Cada una ya tiene los argumentos correctos cargados.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "MELI: Authorize (login OAuth, una sola vez)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/mercado-libre/src/extraccion_meli.py",
+            "args": ["--mode", "authorize"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "MELI: Extract diario (scope=daily, ultimo mes)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/mercado-libre/src/extraccion_meli.py",
+            "args": ["--mode", "extract", "--scope", "daily", "--months", "1"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "MELI: Extract mensual (default, 10 meses hacia atras)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/mercado-libre/src/extraccion_meli.py",
+            "args": ["--mode", "extract", "--scope", "monthly", "--months", "10"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "MELI: Daily-sync local (simula el Cloud Run Job, backend=file)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/mercado-libre/src/extraccion_meli.py",
+            "args": ["--mode", "daily-sync"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "MERCADO_LIBRE_OAUTH_BACKEND": "file"
+            }
+        }
+    ]
+}

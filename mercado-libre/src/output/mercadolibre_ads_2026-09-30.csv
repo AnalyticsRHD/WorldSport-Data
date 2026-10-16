@@ -1,0 +1,4 @@
+﻿date,cliente,marca,referencia,account_id,account_name,plataforma,campaign_id,campaign_name,granularity,coverage_end_date,spend,impressions,clicks,conversions,revenue,ctr,cpc,acos,cvr,roas,direct_amount,indirect_amount,total_amount,direct_units_quantity,indirect_units_quantity
+2026-09-30,WorldSport,DC Shoes 3P,DC Shoes 3P,1044417,DC Shoes 3P,MELI-PADS,354622472,PERFORMANCE_VENTAS_PADS_3P,daily,,92028.85,275160,468,1.0,39999.0,0.17,196.64,230.08,0.21,0.43,0.0,39999.0,39999.0,0.0,1.0
+2026-09-30,WorldSport,Quiksilver,Quiksilver,783797,Quiksilver,MELI-PADS,353757112,PERFORMANCE_VENTAS_PADS,daily,,39289.1,120088,252,4.0,154996.0,0.21,155.91,25.35,1.59,3.95,154996.0,0.0,154996.0,4.0,0.0
+2026-09-30,WorldSport,Roxy,Roxy,783810,Roxy,MELI-PADS,353757083,PERFORMANCE_VENTAS_PADS,daily,,6010.07,34731,48,1.0,99999.0,0.14,125.21,6.01,2.08,16.64,0.0,99999.0,99999.0,0.0,1.0
