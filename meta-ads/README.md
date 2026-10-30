@@ -2,8 +2,9 @@
 
 Extractor de inversión en Meta Ads (Facebook/Instagram) hacia GCS, mismo
 patrón que `magento/` y `mercado-libre/`. Escribe a
-`gs://GCS_BUCKET/raw/meta-ads/inversion/{fecha}.json` (JSON Lines) vía
-`escribir_a_gcs()` de `_common/gcs_utils.py`.
+`gs://GCS_BUCKET/raw/inversiones/meta/{fecha}.json` (JSON Lines) vía
+`escribir_a_gcs()` de `_common/gcs_utils.py` -- al lado de la inversión de
+Mercado Libre (`raw/inversiones/meli/`).
 
 Una fila por **campaña y día** (Insights API, `level=campaign`,
 `time_increment=1`): spend, impresiones, alcance, clicks, compras y valor de
@@ -60,7 +61,7 @@ GCS_PROJECT=worldsport-503720 GCS_BUCKET=worldsport-data \
   python meta-ads/src/extraccion_meta.py --mode backfill --since 2025-01-01
 ```
 
-Trae mes por mes hasta ayer y deja `raw/meta-ads/inversion/2025-01-01.json`,
+Trae mes por mes hasta ayer y deja `raw/inversiones/meta/2025-01-01.json`,
 `2025-01-02.json`, ... igual que el histórico de Magento.
 
 ## 3. Deploy del job diario

@@ -126,6 +126,13 @@ PURCHASE_ACTION_TYPES = (
 # se reintentan con backoff en vez de fallar la cuenta entera.
 RATE_LIMIT_CODES = {4, 17, 32, 613, 80000, 80004}
 
+# Destino en GCS: raw/inversiones/meta/{fecha}.json, al lado de la inversion
+# de Mercado Libre (raw/inversiones/meli/). escribir_a_gcs arma la ruta como
+# raw/{fuente}/{entidad}/, por eso "inversiones" va como fuente y "meta" como
+# entidad.
+GCS_FUENTE = "inversiones"
+GCS_ENTIDAD = "meta"
+
 
 class Config:
     def __init__(self):
@@ -403,7 +410,7 @@ def _run_daily_sync() -> int:
 
     if rows:
         path = escribir_a_gcs(
-            pd.DataFrame(rows), fecha_ejecucion=today(), fuente="meta-ads", entidad="inversion",
+            pd.DataFrame(rows), fecha_ejecucion=today(), fuente=GCS_FUENTE, entidad=GCS_ENTIDAD,
             gcs_project=config.gcs_project or None, gcs_bucket=config.gcs_bucket or None,
         )
         print(f"[OK] Subido a gs://{config.gcs_bucket}/{path}")
@@ -421,7 +428,7 @@ def _run_daily_sync() -> int:
 def _run_backfill(since: str, until: str) -> int:
     """
     Carga historica a GCS: trae [since, until] (por mes, ver month_chunks) y
-    escribe UN archivo por dia de dato -- raw/meta-ads/inversion/{dia}.json
+    escribe UN archivo por dia de dato -- raw/inversiones/meta/{dia}.json
     -- igual que quedo el historico de Magento (raw/magento/ordenes/2025-01-01.json, ...).
 
     Se corre una vez a mano antes de prender el daily-sync. Si se re-corre
@@ -437,11 +444,11 @@ def _run_backfill(since: str, until: str) -> int:
         df = pd.DataFrame(rows)
         for dia, df_dia in df.groupby("date"):
             path = escribir_a_gcs(
-                df_dia, fecha_ejecucion=dia, fuente="meta-ads", entidad="inversion",
+                df_dia, fecha_ejecucion=dia, fuente=GCS_FUENTE, entidad=GCS_ENTIDAD,
                 gcs_project=config.gcs_project or None, gcs_bucket=config.gcs_bucket or None,
             )
             logger.info("  %d fila(s) -> gs://%s/%s", len(df_dia), config.gcs_bucket, path)
-        print(f"[OK] {df['date'].nunique()} archivo(s) diario(s) subidos a gs://{config.gcs_bucket}/raw/meta-ads/inversion/")
+        print(f"[OK] {df['date'].nunique()} archivo(s) diario(s) subidos a gs://{config.gcs_bucket}/raw/{GCS_FUENTE}/{GCS_ENTIDAD}/")
 
     for f in failures:
         print(f"[ADVERTENCIA] {f}")
