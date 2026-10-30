@@ -25,7 +25,8 @@ Token de un **system user** del Business Manager (app "Loopi") con
 `ads_read`. No vence, así que no hay flujo OAuth como en Mercado Libre.
 
 - Local: `meta-ads/.env` con `META_ACCESS_TOKEN=...` (no va al repo, ver `.gitignore`).
-- Cloud Run Job: secret `meta-access-token` en Secret Manager, inyectado con `--set-secrets`.
+- Cloud Run Job: secret `ACCESS_TOKEN_META` en Secret Manager (mismo estilo
+  de nombre que `ACCESS_TOKEN_MAGENTO`), inyectado con `--set-secrets`.
 
 El token también tiene `ads_management`: el script solo lee, pero el secret
 es una credencial con permiso de escritura sobre las campañas.
@@ -64,10 +65,18 @@ Trae mes por mes hasta ayer y deja `raw/meta-ads/inversion/2025-01-01.json`,
 
 ## 3. Deploy del job diario
 
+Todo con la service account `ws-account@worldsport-503720.iam.gserviceaccount.com`,
+la misma del job y el scheduler de Magento (ya tiene escritura en
+`worldsport-data` e `run.invoker`).
+
 ```bash
-# Secret (una vez)
-gcloud secrets create meta-access-token --project=worldsport-503720 --replication-policy=automatic
-gcloud secrets versions add meta-access-token --project=worldsport-503720 --data-file=-   # pegar el token + Ctrl-Z/Ctrl-D
+# Secret (una vez) -- ver output/crear_secret_meta.ps1 para hacerlo sin
+# dejar un salto de linea al final del token
+gcloud secrets create ACCESS_TOKEN_META --project=worldsport-503720 --replication-policy=automatic
+gcloud secrets versions add ACCESS_TOKEN_META --project=worldsport-503720 --data-file=<archivo_con_el_token>
+gcloud secrets add-iam-policy-binding ACCESS_TOKEN_META --project=worldsport-503720 \
+  --member=serviceAccount:ws-account@worldsport-503720.iam.gserviceaccount.com \
+  --role=roles/secretmanager.secretAccessor
 
 # Imagen
 gcloud builds submit --config=meta-ads/cloudbuild.yaml .
@@ -77,22 +86,15 @@ gcloud run jobs create meta-ads-extractor-ws \
   --region=southamerica-east1 \
   --image=southamerica-east1-docker.pkg.dev/worldsport-503720/worldsport-jobs/meta-ads-extractor \
   --set-env-vars=GCS_PROJECT=worldsport-503720,GCS_BUCKET=worldsport-data \
-  --set-secrets=META_ACCESS_TOKEN=meta-access-token:latest \
-  --service-account=<SA_DEL_JOB> \
-  --max-retries=1 --task-timeout=30m
+  --set-secrets=META_ACCESS_TOKEN=ACCESS_TOKEN_META:latest \
+  --service-account=ws-account@worldsport-503720.iam.gserviceaccount.com \
+  --max-retries=1 --task-timeout=10m --memory=512Mi
 
 # Disparo diario (11:00 hora Argentina)
 gcloud scheduler jobs create http meta-ads-extractor-ws-diario \
   --location=southamerica-east1 \
   --schedule="0 11 * * *" --time-zone="America/Argentina/Buenos_Aires" \
-  --uri="https://run.googleapis.com/v2/projects/worldsport-503720/locations/southamerica-east1/jobs/meta-ads-extractor-ws:run" \
+  --uri="https://southamerica-east1-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/worldsport-503720/jobs/meta-ads-extractor-ws:run" \
   --http-method=POST \
-  --oauth-service-account-email=<SA_DEL_SCHEDULER>
+  --oauth-service-account-email=ws-account@worldsport-503720.iam.gserviceaccount.com
 ```
-
-`<SA_DEL_JOB>` necesita `roles/storage.objectUser` sobre el bucket (no
-alcanza `objectCreator`: el daily-sync pisa el archivo si se re-ejecuta el
-mismo día) y
-`roles/secretmanager.secretAccessor` sobre el secret; `<SA_DEL_SCHEDULER>`
-necesita `roles/run.invoker`. Usar las mismas que los jobs de Magento /
-Mercado Libre.
