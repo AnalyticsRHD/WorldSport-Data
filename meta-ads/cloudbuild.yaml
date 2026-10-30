@@ -1,0 +1,30 @@
+# Config de Cloud Build para el extractor de Meta Ads (mismo patron que
+# magento/cloudbuild.yaml).
+#
+# Se corre desde la RAIZ del repo (no desde adentro de meta-ads/):
+#   gcloud builds submit --config=meta-ads/cloudbuild.yaml .
+#
+# El "." final es el contexto (la raiz del repo completa, para que el
+# Dockerfile pueda copiar _common/ ademas de meta-ads/). El -f apunta al
+# Dockerfile puntual de esta fuente.
+#
+# A diferencia de magento/, NO tiene el paso `gcloud run jobs update`: la
+# primera vez el job todavia no existe (se crea a mano con `gcloud run jobs
+# create`, ver meta-ads/README.md). Una vez creado, se puede agregar ese
+# paso igual que en magento/cloudbuild.yaml con el nombre meta-ads-extractor-ws.
+
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'meta-ads/Dockerfile'
+      - '-t'
+      - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/meta-ads-extractor'
+      - '.'
+
+images:
+  - 'southamerica-east1-docker.pkg.dev/$PROJECT_ID/worldsport-jobs/meta-ads-extractor'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
