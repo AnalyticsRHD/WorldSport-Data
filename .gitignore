@@ -16,6 +16,7 @@ __pycache__/
 # Salidas locales (parquet/csv de respaldo, no son fuente de verdad)
 data/
 **/data/
+output/
 
 # Keys de service account si alguna vez se descargan localmente
 # (patrones tipicos de como GCP nombra estos archivos por default)
