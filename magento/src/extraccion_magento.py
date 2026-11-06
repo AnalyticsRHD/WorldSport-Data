@@ -116,6 +116,33 @@ CAMBIOS respecto a la version anterior (ventana rodante):
     una frase informal en un chat, no un acuerdo por escrito. Antes de
     dejar esto en un cron de produccion corriendo indefinidamente, pedir
     una confirmacion explicita.
+12. (2026-10) Campos nuevos en ordenes, a partir de explorar /V1/orders
+    sobre 400 ordenes reales (expone ~490 campos, se usaban 27):
+    - Montos de la orden: Total_Orden (grand_total), Subtotal_Orden,
+      Costo_Envio, Descuento_Orden, Monto_Giftcard, Total_Facturado,
+      Total_Cancelado, Total_Reintegrado, Total_Adeudado.
+    - Por linea: Product_ID / Product_ID_Padre, Tipo_Producto,
+      Precio_Original (precio de lista, antes de rebajas), Porcentaje_Descuento,
+      Reglas_Aplicadas_Item y las cantidades facturada/enviada/cancelada/
+      reintegrada, Monto_Reintegrado_Linea y Origen_Stock (source de MSI).
+    - Orden/cliente: Order_ID (entity_id, para cruzar con /V1/creditmemos),
+      Estado_Interno (state), ID_Cliente, Cliente_Invitado, Grupo_Cliente.
+    - Envio: Metodo_Envio, Descripcion_Envio y Localidad/Provincia/
+      Codigo_Postal de ENVIO (pueden diferir de los de facturacion).
+    - Historial_Estados: JSON con [{estado, entidad, fecha}] de
+      status_histories (sin los comentarios, que traen datos de pago).
+    Bugs corregidos en el mismo cambio:
+    - Total_pagado usaba grand_total cuando faltaba total_paid, pero
+      Magento OMITE total_paid en toda orden no pagada (~58%: canceladas,
+      pendientes, etc.) -- esas ordenes figuraban como pagadas. Ahora es 0;
+      el total de la orden queda en Total_Orden.
+    - hijos_por_padre se armaba por item_id del hijo y se buscaba con el
+      del padre: nunca encontraba al hijo. No cambiaba el SKU (el padre de
+      un configurable ya trae el SKU de la variante), pero si el
+      Product_ID de la variante, que sale del hijo.
+    - GOcuotas SI informa cuotas, estado e id -- vienen en
+      extension_attributes.payment_additional_info (clave/valor), que
+      ahora se usa tambien para Mercado Pago en vez del parseo posicional.
 """
 
 import os
@@ -220,10 +247,15 @@ def parsear_checkout_pro(payment):
         return {}
     return dict(zip(claves_esperadas, info))
 
-def extraer_detalle_pago(payment):
+def extraer_detalle_pago(payment, info_pago=None):
     """Normaliza el detalle de pago sea cual sea el metodo.
-    Devuelve siempre las mismas claves; las que no aplican quedan en None."""
+    Devuelve siempre las mismas claves; las que no aplican quedan en None.
+
+    info_pago: extension_attributes.payment_additional_info de la orden como
+    dict clave -> valor. Es la misma info que payment.additional_information
+    pero con nombre, asi que se prefiere sobre el parseo posicional."""
     metodo = payment.get("method", "")
+    info_pago = info_pago or {}
     detalle = {
         "cuotas": None,
         "tipo_pago": None,
@@ -232,7 +264,7 @@ def extraer_detalle_pago(payment):
     }
 
     if metodo in ("mercadopago_adbpayment_checkout_pro", "mercadopago_adbpayment_checkout_credits"):
-        info = parsear_checkout_pro(payment)
+        info = info_pago or parsear_checkout_pro(payment)
         if info:
             detalle["cuotas"] = info.get("payment_0_installments")
             detalle["tipo_pago"] = info.get("payment_0_type")
@@ -240,8 +272,10 @@ def extraer_detalle_pago(payment):
             detalle["id_transaccion"] = info.get("payment_0_id")
 
     elif metodo == "gocuotas":
-        # GOcuotas no expone cuotas/estado especifico por orden, solo un texto fijo
         detalle["tipo_pago"] = "debito_sin_tarjeta"
+        detalle["cuotas"] = info_pago.get("installments")
+        detalle["estado_pago"] = info_pago.get("status")
+        detalle["id_transaccion"] = info_pago.get("id")
 
     elif metodo == "talopay_transfer":
         info_lista = payment.get("additional_information", [])
@@ -367,9 +401,30 @@ def importar_ordenes(oauth, desde, hasta, estatus=None, page_size=PAGE_SIZE):
 
         for orden in data.get("items", []):
             items = orden.get("items", [])
+            # Bug corregido: antes se indexaba por el item_id del hijo y
+            # nunca matcheaba contra el item_id del padre (ver punto 12).
             hijos_por_padre = {
-                it["item_id"]: it for it in items if it.get("parent_item_id")
+                it["parent_item_id"]: it for it in items if it.get("parent_item_id")
             }
+
+            # Magento omite los campos vacios del JSON (ej. total_paid en una
+            # orden no pagada), por eso los montos van con .get(..., 0).
+            extension = orden.get("extension_attributes", {}) or {}
+            info_pago = {
+                kv.get("key"): kv.get("value")
+                for kv in extension.get("payment_additional_info", []) or []
+            }
+            envio = ((extension.get("shipping_assignments") or [{}])[0] or {}).get("shipping", {}) or {}
+            direccion_envio = envio.get("address", {}) or {}
+            origen_por_sku = {
+                s.get("sku"): s.get("source_code") for s in extension.get("sources", []) or []
+            }
+            giftcard = extension.get("am_giftcard_order", {}) or {}
+            # Sin los comentarios del historial: traen datos del pago.
+            historial_estados = json.dumps([
+                {"estado": h.get("status"), "entidad": h.get("entity_name"), "fecha": h.get("created_at")}
+                for h in orden.get("status_histories", []) or []
+            ])
 
             for item in items:
                 if item.get("parent_item_id"):
@@ -387,25 +442,59 @@ def importar_ordenes(oauth, desde, hasta, estatus=None, page_size=PAGE_SIZE):
                 provincia = billing.get("region", "")
                 # edad_cliente = obtener_edad_cliente(oauth, orden.get("customer_id"))
 
-                detalle_pago = extraer_detalle_pago(payment)
+                detalle_pago = extraer_detalle_pago(payment, info_pago)
 
                 filas.append({
                     "Numero_Orden": orden["increment_id"],
+                    "Order_ID": orden.get("entity_id"),  # para cruzar con /V1/creditmemos
                     "Fecha_de_compra": orden["created_at"],
                     "Fecha_Actualizacion": orden.get("updated_at"),
                     "Fecha_Carga": fecha_carga,  # nueva -- para deduplicar en BigQuery
                     "Estatus": orden["status"],
+                    "Estado_Interno": orden.get("state"),
+                    "Historial_Estados": historial_estados,
                     "Store_ID": orden.get("store_id"),
                     "Punto_de_compra": orden.get("store_name", "").replace("\n", " / "),
                     "Correo_electronico_del_cliente": orden.get("customer_email", ""),
+                    "ID_Cliente": orden.get("customer_id"),
+                    "Cliente_Invitado": orden.get("customer_is_guest"),
+                    "Grupo_Cliente": orden.get("customer_group_id"),
                     "SKU": sku_variante,
+                    "Product_ID": hijo["product_id"] if hijo else item.get("product_id"),
+                    "Product_ID_Padre": item.get("product_id") if hijo else None,
+                    "Tipo_Producto": item.get("product_type"),
                     "Nombre_Producto": item["name"],
+                    "Origen_Stock": origen_por_sku.get(sku_variante),
                     "Cantidad": item["qty_ordered"],
+                    "Cantidad_Facturada": item.get("qty_invoiced", 0),
+                    "Cantidad_Enviada": item.get("qty_shipped", 0),
+                    "Cantidad_Cancelada": item.get("qty_canceled", 0),
+                    "Cantidad_Reintegrada": item.get("qty_refunded", 0),
+                    "Precio_Original": item.get("original_price"),
                     "Precio": item["price"],
                     "Descuento": item.get("discount_amount", 0),
+                    "Porcentaje_Descuento": item.get("discount_percent", 0),
+                    "Reglas_Aplicadas_Item": item.get("applied_rule_ids"),
                     "Total_Linea": item["row_total"],
-                    "Total_pagado": orden.get("total_paid", orden["grand_total"]),
+                    "Monto_Reintegrado_Linea": item.get("amount_refunded", 0),
+                    "Total_Orden": orden["grand_total"],
+                    # Bug corregido: sin total_paid la orden no esta pagada,
+                    # antes caia en grand_total (ver punto 12).
+                    "Total_pagado": orden.get("total_paid", 0),
+                    "Subtotal_Orden": orden.get("subtotal", 0),
+                    "Costo_Envio": orden.get("shipping_amount", 0),
+                    "Descuento_Orden": orden.get("discount_amount", 0),  # negativo, como lo da Magento
+                    "Monto_Giftcard": giftcard.get("gift_amount", 0),
+                    "Total_Facturado": orden.get("total_invoiced", 0),
+                    "Total_Cancelado": orden.get("total_canceled", 0),
+                    "Total_Reintegrado": orden.get("total_refunded", 0),
+                    "Total_Adeudado": orden.get("total_due", 0),
                     "Moneda": orden.get("order_currency_code", ""),
+                    "Metodo_Envio": envio.get("method"),
+                    "Descripcion_Envio": orden.get("shipping_description"),
+                    "Localidad_Envio": direccion_envio.get("city"),
+                    "Provincia_Envio": direccion_envio.get("region"),
+                    "Codigo_Postal_Envio": direccion_envio.get("postcode"),
                     "Metodo_de_Pago": metodo_pago,
                     "Direccion": direccion,
                     "Localidad": localidad,
@@ -423,7 +512,13 @@ def importar_ordenes(oauth, desde, hasta, estatus=None, page_size=PAGE_SIZE):
         print(f"Pagina {pagina}/{total_paginas} procesada - {len(filas)} lineas acumuladas")
         pagina += 1
 
-    return pd.DataFrame(filas)
+    df = pd.DataFrame(filas)
+    # IDs con huecos (invitados sin ID_Cliente, productos simples sin padre):
+    # Int64 para que no lleguen a GCS como float (283348.0).
+    for col in ("Order_ID", "ID_Cliente", "Product_ID", "Product_ID_Padre", "Grupo_Cliente"):
+        if col in df:
+            df[col] = df[col].astype("Int64")
+    return df
 
 
 def importar_stock_sap(url=SAP_STOCK_URL, timeout=60):
@@ -612,7 +707,17 @@ if __name__ == "__main__":
     # quedado de una prueba puntual -- pisaba silenciosamente el calculo
     # dinamico de arriba en cada corrida.)
     HOY = datetime.datetime.now(TIMEZONE_NEGOCIO)
-    VENTANA_DIAS = 5
+    # VENTANA_DIAS bajada de 5 a 2 (2026-11): los 5 dias cubrian el p99 del
+    # spread creacion->ultima-actualizacion cuando Mercado Pago tardaba hasta
+    # ~48hs en confirmar un pago (ver puntos 1-2 del docstring). Ese delay bajo
+    # a ~8hs, asi que 5 dias pasaron a ser pura sobre-captura: cada corrida
+    # re-traia miles de ordenes/SKUs y el job se pasaba del timeout de Cloud
+    # Run. Con 2 dias se cubren las 8hs de MP con margen, se tolera una corrida
+    # diaria fallida sin dejar hueco, y baja fuerte el volumen por corrida.
+    # OJO: la ventana tambien gobierna la re-captura de cambios de estado
+    # tardios (envio/reintegro dias despues de la compra). Si hace falta
+    # seguir actualizando esos, considerar un barrido mas ancho aparte.
+    VENTANA_DIAS = 2
 
     desde = (HOY - datetime.timedelta(days=VENTANA_DIAS)).strftime("%Y-%m-%d 00:00:00")
     hasta = HOY.strftime("%Y-%m-%d 23:59:59")
