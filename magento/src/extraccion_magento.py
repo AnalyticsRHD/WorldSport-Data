@@ -707,7 +707,17 @@ if __name__ == "__main__":
     # quedado de una prueba puntual -- pisaba silenciosamente el calculo
     # dinamico de arriba en cada corrida.)
     HOY = datetime.datetime.now(TIMEZONE_NEGOCIO)
-    VENTANA_DIAS = 5
+    # VENTANA_DIAS bajada de 5 a 2 (2026-11): los 5 dias cubrian el p99 del
+    # spread creacion->ultima-actualizacion cuando Mercado Pago tardaba hasta
+    # ~48hs en confirmar un pago (ver puntos 1-2 del docstring). Ese delay bajo
+    # a ~8hs, asi que 5 dias pasaron a ser pura sobre-captura: cada corrida
+    # re-traia miles de ordenes/SKUs y el job se pasaba del timeout de Cloud
+    # Run. Con 2 dias se cubren las 8hs de MP con margen, se tolera una corrida
+    # diaria fallida sin dejar hueco, y baja fuerte el volumen por corrida.
+    # OJO: la ventana tambien gobierna la re-captura de cambios de estado
+    # tardios (envio/reintegro dias despues de la compra). Si hace falta
+    # seguir actualizando esos, considerar un barrido mas ancho aparte.
+    VENTANA_DIAS = 2
 
     desde = (HOY - datetime.timedelta(days=VENTANA_DIAS)).strftime("%Y-%m-%d 00:00:00")
     hasta = HOY.strftime("%Y-%m-%d 23:59:59")
